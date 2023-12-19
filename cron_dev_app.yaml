@@ -1,0 +1,66 @@
+---
+- name: Cron Job Playbook for running the scheduled tasks
+  hosts: localhost
+  gather_facts: false
+
+  vars:
+    acr_url: aimtm.azurecr.io
+    image_name: atrilyx-dev
+    base_path: /home/ansible/code
+
+  vars_files:
+    - "{{ base_path }}/docker_credentials.yaml"
+
+  tasks:
+    - name: Get Current Date and Time
+      command: "{{ base_path }}/print_datetime.sh"
+      register: script_output
+
+    - name: Display Current Date and Time
+      debug:
+        var: script_output.stdout
+
+    - name: Check if Container is Present
+      shell: docker inspect Atrilyx
+      register: check_if_docker_container_exists
+      ignore_errors: yes
+
+    - name: Print the value of variable check_if_docker_container_exists
+      ansible.builtin.debug:
+        var: check_if_docker_container_exists
+
+    - block:
+        - name: Log in to the Microsoft Docker Registry
+          docker_login:
+            username: aimtm
+            password: YIicbxbyHrr6CMqanq0g9F6YOL/esCTn
+            registry_url: aimtm.azurecr.io
+
+        - name: Pull Docker Image
+          shell: docker pull {{ acr_url }}/aimtm:{{ image_name }}
+
+        - name: Create and start the new container
+          shell: docker run -d -p 8080:80 --env-file /home/ansible/code/dev_Atrilyx.env --name Atrilyx {{ acr_url }}/aimtm:{{ image_name }}
+
+        - name: Pause for 1 minute to wait for the container to be healthy
+          pause:
+            minutes: 1
+
+        - name: Execute scheduled task in the Atrilyx container
+          community.docker.docker_container_exec:
+            container: Atrilyx
+            command: ./console core:run-scheduled-task
+            chdir: /var/www/html/
+          register: result
+          ignore_errors: yes
+
+        - name: Print stdout
+          ansible.builtin.debug:
+            var: result.stdout
+
+        - name: Stop the Docker container
+          shell: docker stop Atrilyx
+
+        - name: Run Docker prune
+          command: docker system prune --force
+      when: check_if_docker_container_exists.failed == true
