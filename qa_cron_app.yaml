@@ -46,18 +46,32 @@
           pause:
             minutes: 1
 
-        - name: Execute scheduled task in the Atrilyx container
+        - name: Execute run-scheduled-task task inside the Atrilyx container
           community.docker.docker_container_exec:
             container: Atrilyx
             command: ./console core:run-scheduled-task
             chdir: /var/www/html/
           register: result
           ignore_errors: yes
+          tags: run-scheduled-task
 
-        - name: Print stdout
+        - name: Execute archive task inside the Atrilyx container
+          community.docker.docker_container_exec:
+            container: Atrilyx
+            command: ./console core:archive --verbose --url=http://localhost --matomo-domain=https://deveq.atrilyx.com/ --skip-idsites="351"
+            chdir: /var/www/html/
+          register: result_archive
+          ignore_errors: yes
+          tags: archive
+
+        - name: Print stdout for scheduled task
           ansible.builtin.debug:
             var: result.stdout
 
+        - name: Print stdout for archive task
+          ansible.builtin.debug:
+            var: result_archive.stdout
+        
         - name: Stop the Docker container
           shell: docker stop Atrilyx
 
