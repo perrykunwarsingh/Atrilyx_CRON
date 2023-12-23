@@ -53,14 +53,35 @@
             chdir: /var/www/html/
           register: result
           ignore_errors: yes
+          tags: run-scheduled-task
 
-        - name: Print stdout
+        - name: Execute archive task inside the Atrilyx container
+          community.docker.docker_container_exec:
+            container: Atrilyx
+            command: ./console core:archive --verbose --url=http://localhost --matomo-domain=https://deveq.atrilyx.com/ --skip-idsites="351"
+            chdir: /var/www/html/
+          register: result_archive
+          ignore_errors: yes
+          tags: archive
+
+        - name: Print stdout for scheduled task
           ansible.builtin.debug:
             var: result.stdout
+
+        - name: Print stdout for archive task
+          ansible.builtin.debug:
+            var: result_archive.stdout
 
         - name: Stop the Docker container
           shell: docker stop Atrilyx
 
-        - name: Run Docker prune
-          command: docker system prune --force
+        - name: Prune everything (including non-dangling images)
+          community.docker.docker_prune:
+            containers: true
+            images: true
+            images_filters:
+              dangling: false
+            networks: true
+            volumes: true
+            builder_cache: true
       when: check_if_docker_container_exists.failed == true
